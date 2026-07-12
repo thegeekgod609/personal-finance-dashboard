@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spend &amp; Income</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg-0:#0a0d12; --bg-1:#11151d; --bg-2:#161c26;
+    --line:#232b38; --line-bright:#313c4d;
+    --text-0:#eef1f6; --text-1:#98a2b3; --text-2:#5b6472;
+    --emerald:#34d399; --emerald-dim:#1c5f47;
+    --amber:#fbbf24; --amber-dim:#8a6a1c;
+    --coral:#f87171; --coral-dim:#7a3230;
+    --violet:#a78bfa; --blue:#60a5fa;
+    --radius:10px;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --display:'Space Grotesk', sans-serif;
+    --body:'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 10% -10%, rgba(52,211,153,0.06), transparent 55%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(167,139,250,0.05), transparent 55%),
+      var(--bg-0);
+    color:var(--text-0); font-family:var(--body); font-size:13.5px; line-height:1.5;
+    min-height:100vh; padding:32px 32px 60px;
+  }
+  .num{font-family:var(--mono);}
+  .page-head{display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px;}
+  .page-head h1{font-family:var(--display); font-size:26px; font-weight:700; margin:0 0 4px 0; letter-spacing:-0.01em;}
+  .page-head .sub{color:var(--text-1); font-size:12.5px;}
+  .save-indicator{font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:6px;}
+  .save-dot{width:6px; height:6px; border-radius:50%; background:var(--text-2);}
+  .save-dot.ok{background:var(--emerald);}
+  .save-dot.busy{background:var(--amber); animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:0.3;}}
+
+  /* period toggle */
+  .period-toggle{display:inline-flex; background:var(--bg-1); border:1px solid var(--line); border-radius:8px; padding:3px; margin-bottom:18px; gap:2px;}
+  .period-toggle button{
+    background:none; border:none; color:var(--text-1); font-family:var(--body); font-size:12px; font-weight:500;
+    padding:7px 16px; border-radius:6px; cursor:pointer;
+  }
+  .period-toggle button.active{background:var(--emerald); color:#062617; font-weight:600;}
+  .period-hint{color:var(--text-2); font-size:11px; margin-left:10px; align-self:center;}
+
+  .stats{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:18px;}
+  .stat{background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+  .stat .label{color:var(--text-2); font-size:10.5px; letter-spacing:0.07em; text-transform:uppercase; margin-bottom:9px; font-weight:600;}
+  .stat .value{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--text-0);}
+  .stat .value small{font-size:11px; color:var(--text-2); font-weight:400; font-family:var(--body);}
+  .stat.emerald .value{color:var(--emerald);}
+  .stat.coral .value{color:var(--coral);}
+  .stat.violet .value{color:var(--violet);}
+  .stat .addbtn{
+    float:right; background:none; border:1px solid var(--line-bright); color:var(--text-2);
+    font-size:10.5px; padding:2px 8px; border-radius:6px; cursor:pointer;
+  }
+  .stat .addbtn:hover{color:var(--emerald); border-color:var(--emerald-dim);}
+
+  .grid-charts{display:grid; grid-template-columns: 1.1fr 1fr; gap:14px; margin-bottom:14px;}
+  .panel{background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; padding:13px 18px; border-bottom:1px solid var(--line);}
+  .panel-head h2{margin:0; font-family:var(--display); font-size:13.5px; font-weight:600; color:var(--text-0);}
+  .panel-head .hint{font-size:10.5px; color:var(--text-2);}
+  .panel-body{padding:18px;}
+
+  /* pie / slice-and-dice */
+  .chart-wrap{padding:16px 18px 6px; height:230px; position:relative;}
+  .selection-bar{
+    margin:0 18px 14px; padding:10px 12px; background:var(--bg-0); border:1px solid var(--line);
+    border-radius:8px; font-size:11.5px; color:var(--text-1); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;
+  }
+  .selection-bar b{color:var(--text-0); font-family:var(--mono);}
+  .selection-bar .clear-sel{background:none; border:none; color:var(--text-2); cursor:pointer; font-size:11px; text-decoration:underline;}
+  .chip-legend{display:flex; flex-wrap:wrap; gap:7px; padding:0 18px 18px;}
+  .chip{
+    display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:16px; cursor:pointer;
+    border:1px solid var(--line-bright); font-size:11px; color:var(--text-1); user-select:none;
+    transition:all 0.15s ease;
+  }
+  .chip .swatch{width:8px; height:8px; border-radius:2px;}
+  .chip.selected{background:rgba(255,255,255,0.06); color:var(--text-0); border-color:var(--text-0);}
+  .chip .amt{font-family:var(--mono); color:var(--text-2); font-size:10px;}
+  .chip.selected .amt{color:var(--text-1);}
+
+  /* budgets removed per latest spec but keep helper classes for ledger/income below */
+  .income-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);}
+  .income-row:last-of-type{border-bottom:none;}
+  .income-row .ilabel{flex:1; font-size:12.5px; color:var(--text-0);}
+  .income-freq{font-size:9.5px; color:var(--text-2); border:1px solid var(--line-bright); border-radius:8px; padding:1px 7px; text-transform:uppercase; letter-spacing:0.05em;}
+  .income-row .iamt{font-family:var(--mono); font-weight:600; color:var(--emerald); white-space:nowrap;}
+  .del-x{background:none; border:1px solid var(--line); color:var(--text-2); cursor:pointer; width:22px; height:22px; border-radius:6px; font-size:12px; line-height:1; flex:none;}
+  .del-x:hover{border-color:var(--coral-dim); color:var(--coral);}
+  .add-form{display:grid; grid-template-columns: 1fr 110px 90px 34px; gap:8px; margin-top:12px;}
+  .add-form input, .add-form select{background:var(--bg-0); border:1px solid var(--line); color:var(--text-0); font-family:var(--body); font-size:12px; padding:8px 10px; border-radius:6px;}
+  .add-form input:focus, .add-form select:focus{outline:none; border-color:var(--emerald-dim);}
+  .btn{background:var(--bg-2); border:1px solid var(--line-bright); color:var(--text-0); font-family:var(--body); font-size:12px; font-weight:500; padding:8px 14px; border-radius:6px; cursor:pointer;}
+  .btn:hover{border-color:var(--emerald-dim); color:var(--emerald);}
+  .btn.primary{background:var(--emerald); border-color:var(--emerald); color:#062617; font-weight:600;}
+  .btn.primary:hover{opacity:0.9;}
+  .btn.icon{padding:8px 10px;}
+  .empty-hint{color:var(--text-2); font-size:12px; padding:6px 0;}
+
+  /* modal-ish inline popovers for quick add on cards */
+  .quick-add{
+    display:none; margin-top:12px; padding:12px; background:var(--bg-0); border:1px solid var(--line); border-radius:8px;
+  }
+  .quick-add.open{display:block;}
+  .quick-add .row{display:flex; gap:8px; flex-wrap:wrap;}
+  .quick-add input, .quick-add select{background:var(--bg-1); border:1px solid var(--line); color:var(--text-0); font-family:var(--body); font-size:11.5px; padding:7px 9px; border-radius:6px; flex:1 1 90px; min-width:0;}
+
+  table{width:100%; border-collapse:collapse; font-size:12px;}
+  thead th{text-align:left; color:var(--text-2); font-weight:600; font-size:10px; letter-spacing:0.06em; text-transform:uppercase; padding:7px 8px; border-bottom:1px solid var(--line);}
+  tbody td{padding:8px; border-bottom:1px solid var(--line); color:var(--text-1); vertical-align:middle;}
+  tbody tr:hover td{background:rgba(255,255,255,0.02);}
+  td.amt{text-align:right; font-family:var(--mono); color:var(--text-0); font-weight:600; white-space:nowrap;}
+  td.date{color:var(--text-2); font-family:var(--mono); font-size:11px; white-space:nowrap;}
+  select.cat-select{background:var(--bg-0); color:var(--text-1); border:1px solid var(--line); font-family:var(--body); font-size:11px; padding:3px 5px; border-radius:5px;}
+  .ledger-scroll{max-height:320px; overflow-y:auto;}
+  .ledger-scroll::-webkit-scrollbar{width:8px;}
+  .ledger-scroll::-webkit-scrollbar-thumb{background:var(--line-bright); border-radius:4px;}
+  .ledger-scroll::-webkit-scrollbar-track{background:var(--bg-0);}
+
+  /* data source */
+  .source-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .source-box{background:var(--bg-0); border:1px solid var(--line); border-radius:8px; padding:16px;}
+  .source-box h3{margin:0 0 10px 0; font-family:var(--display); font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:8px;}
+  .source-box .badge{font-size:9px; padding:2px 7px; border-radius:8px; background:var(--bg-2); color:var(--text-2); text-transform:uppercase; letter-spacing:0.05em;}
+  .file-row{display:flex; align-items:center; gap:10px; margin-top:6px;}
+  .file-row input[type=file]{font-family:var(--body); font-size:11px; color:var(--text-1);}
+  .drive-step{display:flex; flex-direction:column; gap:8px;}
+  .drive-step input{background:var(--bg-1); border:1px solid var(--line); color:var(--text-0); font-family:var(--body); font-size:11.5px; padding:8px 10px; border-radius:6px;}
+  .drive-step input:focus{outline:none; border-color:var(--emerald-dim);}
+  .status-msg{font-size:11.5px; margin-top:8px; padding:9px 11px; border-radius:6px; display:none;}
+  .status-msg.ok{display:block; background:rgba(52,211,153,0.08); color:var(--emerald); border:1px solid var(--emerald-dim);}
+  .status-msg.err{display:block; background:rgba(248,113,113,0.08); color:var(--coral); border:1px solid var(--coral-dim);}
+  .status-msg.info{display:block; background:rgba(96,165,250,0.08); color:var(--blue); border:1px solid #2b4a6b;}
+  .sync-note{font-size:10.5px; color:var(--text-2); line-height:1.6; margin-top:8px;}
+  details.setup-help{margin-top:10px; font-size:11px; color:var(--text-2);}
+  details.setup-help summary{cursor:pointer; color:var(--text-1);}
+  details.setup-help ol{margin:8px 0 0 18px; padding:0;}
+  details.setup-help li{margin-bottom:4px;}
+
+  .footer-note{text-align:center; color:var(--text-2); font-size:10.5px; margin-top:24px;}
+  .footer-note b{color:var(--text-1);}
+
+  @media (max-width: 900px){
+    .grid-charts{grid-template-columns:1fr;}
+    .stats{grid-template-columns:1fr;}
+    .source-grid{grid-template-columns:1fr;}
+    .add-form{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <div>
+    <h1>Spend &amp; Income</h1>
+    <div class="sub">Reads <code>tracker_logs.json</code> · income &amp; investment overlays saved automatically</div>
+  </div>
+  <div class="save-indicator"><span class="save-dot" id="saveDot"></span><span id="saveText">loading saved data…</span></div>
+</div>
+
+<div class="period-toggle" id="periodToggle">
+  <button data-period="monthly" class="active">Monthly</button>
+  <button data-period="quarterly">Quarterly</button>
+  <button data-period="yearly">Yearly</button>
+</div>
+<span class="period-hint" id="periodHint"></span>
+
+<div class="stats" id="statsRow"></div>
+
+<div class="grid-charts">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Spend by category</h2>
+      <span class="hint" id="donutTotal"></span>
+    </div>
+    <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+    <div class="selection-bar" id="selectionBar">
+      <span>Click categories below to slice &amp; dice.</span>
+    </div>
+    <div class="chip-legend" id="chipLegend"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Expense trend</h2>
+      <span class="hint" id="trendHint"></span>
+    </div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="trendChart"></canvas></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-bottom:14px;">
+  <div class="panel-head">
+    <h2>Ledger — entries this period</h2>
+    <span class="hint" id="ledgerCount"></span>
+  </div>
+  <div class="panel-body ledger-scroll">
+    <table>
+      <thead><tr><th>Date</th><th>Item</th><th>Category</th><th style="text-align:right">Amount</th><th></th></tr></thead>
+      <tbody id="ledgerBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Data source</h2><span class="hint">choose one</span></div>
+  <div class="panel-body">
+    <div class="source-grid">
+
+      <div class="source-box">
+        <h3>📁 Upload file <span class="badge">simple</span></h3>
+        <div class="sync-note">Upload a <code>tracker_logs.json</code> export directly from your computer.</div>
+        <div class="file-row"><input type="file" id="fileInput" accept="application/json"></div>
+      </div>
+
+      <div class="source-box">
+        <h3>🔗 Google Drive <span class="badge">OAuth</span></h3>
+        <div class="drive-step">
+          <input id="clientIdInput" type="text" placeholder="Your Google OAuth Client ID…">
+          <div style="display:flex; gap:8px;">
+            <input id="fileNameInput" type="text" value="tracker_logs.json" style="flex:1;">
+            <button class="btn" id="connectDriveBtn">Connect</button>
+            <button class="btn primary" id="fetchDriveBtn" disabled>Fetch</button>
+          </div>
+        </div>
+        <details class="setup-help">
+          <summary>First time? Set up your OAuth Client ID (5 min)</summary>
+          <ol>
+            <li>Go to Google Cloud Console → create/select a project</li>
+            <li>Enable the <b>Google Drive API</b> for that project</li>
+            <li>Credentials → Create OAuth Client ID → type <b>Web application</b></li>
+            <li>Under Authorized JavaScript origins, add the URL this dashboard is hosted at</li>
+            <li>Paste the generated Client ID above and hit Connect</li>
+          </ol>
+          <div style="margin-top:6px;">If Connect fails silently here in the Claude preview, host this file at a fixed URL (e.g. GitHub Pages) and register that origin instead — sandboxed previews don't always support OAuth popups.</div>
+        </details>
+      </div>
+
+    </div>
+    <div class="status-msg" id="syncStatus"></div>
+  </div>
+</div>
+
+<div class="footer-note">all figures in ₹ · income &amp; investment overlays stored privately for this artifact — visible only to you</div>
+
+<script>
+/* ---------------- embedded data (from tracker_logs.json) ---------------- */
+const RAW_DAYS = [
+  {
+    "date": "2026-06-29",
+    "mood": "⚡ productive",
+    "work": {
+      "done": "1) Logged in at 7.30 am for Split IO Changes.\n2) Worked on Performance Testing for ADS Lightweight. Deployments issues were encountered, Mohammed taught me better ways to deploy. \n3) Regression Testing done for ADS. \n4) Snow created for 1st July change",
+      "carryover": null
+    },
+    "study": "Built the habit tracker app using Claude. \nCreated the HTML, uploaded some script to App script in Google. \nPushed the code to git and used git pages to host it",
+    "chores": {
+      "done": [
+        "Laundry",
+        "Cooked",
+        "Put utensils away",
+        "Cleaned washroom",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Extra dusting"
+      ],
+      "missed": [
+        "Made bed",
+        "Clothes in wardrobe",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Cleaned mirrors",
+        "Cleaned washbasin",
+        "Filled water bottle"
+      ]
+    },
+    "food": {
+      "breakfast": "Black coffee and chocolate",
+      "lunch": "Red Sauce Pasta with corn",
+      "snack": "Makhana, Litchi",
+      "dinner": "Curd Rice with cucumber",
+      "hunger_prangs": null,
+      "supplements": "B12, Omega3 and magnesium",
+      "water_litres": 2
+    },
+    "health": {
+      "sleep_hrs": 8,
+      "steps": 270,
+      "weight_kg": null,
+      "rings": {
+        "move_ring_closed": false,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": false,
+        "workout_done": false
+      },
+      "stretching": null,
+      "body_state": [],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": "Mom,Dad, Urvi and Shubhi",
+      "met": null
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "Kalyan Maintenance ",
+        "amount": 4740,
+        "category": "maintenance"
+      },
+      {
+        "item": "Protein Powder",
+        "amount": 6450,
+        "category": "health"
+      }
+    ],
+    "expenses_total": 11190,
+    "eod_note": "Super productive day, mostly overcompensating for things not working out with IKEA guy"
+  },
+  {
+    "date": "2026-06-30",
+    "mood": "😶 blah",
+    "work": {
+      "done": "I could have been more productive today. I wasted a lot of time.\nUnderstanding why the performance testing is giving me undesirable results and what can I do to analysis further \nI finally mustered the courage to ask Gaurav for 1:1\nIt wasn't bad, but not too good as well. Gaurav said be more available, complete your work faster, ask for more work.",
+      "carryover": null
+    },
+    "study": null,
+    "chores": {
+      "done": [
+        "Cooked",
+        "Filled water bottle"
+      ],
+      "missed": [
+        "Laundry",
+        "Made bed",
+        "Clothes in wardrobe",
+        "Put utensils away",
+        "Cleaned washroom",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Extra dusting",
+        "Cleaned mirrors",
+        "Cleaned washbasin"
+      ]
+    },
+    "food": {
+      "breakfast": "Black Coffee",
+      "lunch": "Cooked : Rice and Pyaaz Malaai(Paneer and Curd)",
+      "snack": "Cooked : Protein Shake, Makhana",
+      "dinner": "Cooked : 2 bread slices with Pyaaz Malaai(Paneer and Curd)",
+      "hunger_prangs": null,
+      "supplements": "B12, Omega3, Magnesium, Whey Protein",
+      "water_litres": 1.5
+    },
+    "health": {
+      "sleep_hrs": 7.5,
+      "steps": 8000,
+      "weight_kg": 62.6,
+      "rings": {
+        "move_ring_closed": true,
+        "exercise_ring_closed": true,
+        "stand_ring_closed": true,
+        "workout_done": false
+      },
+      "stretching": "both",
+      "body_state": [],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": "Called Mom",
+      "met": "Met Oshi and Priyanka at their house for 2 hours or so. Played with Oshi"
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "Bread, Low Fat Paneer, Bell Pepper, Spinach ",
+        "amount": 249,
+        "category": "swiggy/blinkit"
+      }
+    ],
+    "expenses_total": 249,
+    "eod_note": "The day started with high on dopamine, with cooking. But office was pretty unproductive. I feel angsty after Gaurav's 1:1 that I need to step up but IDK how.\nI feel glum about Paras's situation. Nahi accha lag raha coming back to square one"
+  },
+  {
+    "date": "2026-07-01",
+    "mood": "😟 mildly sad",
+    "work": {
+      "done": "Studied ADS codebase. Connected with Phani to understand how to mock in perf  testing. not a lot of progress in terms of JIRA. Kamen also reached out for API market place spec.yml.",
+      "carryover": null
+    },
+    "study": null,
+    "chores": {
+      "done": [
+        "Cooked",
+        "Cleaned washroom",
+        "Extra dusting",
+        "Cleaned washbasin",
+        "Filled water bottle"
+      ],
+      "missed": [
+        "Laundry",
+        "Made bed",
+        "Clothes in wardrobe",
+        "Put utensils away",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Cleaned mirrors"
+      ]
+    },
+    "food": {
+      "breakfast": "Black Coffee",
+      "lunch": "Cooked : Rice and Paneer Palak",
+      "snack": "Protein Shake, Makhana, bhakrawadi",
+      "dinner": "Bingo Chips 20rupees wala packet, small Pringles, Dark Chocolate Ice Cream Get a Whey",
+      "hunger_prangs": null,
+      "supplements": "b12, omega3, magnesium, whey",
+      "water_litres": 3
+    },
+    "health": {
+      "sleep_hrs": 6,
+      "steps": 8235,
+      "weight_kg": 61.95,
+      "rings": {
+        "move_ring_closed": true,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": true,
+        "workout_done": false
+      },
+      "stretching": "morning",
+      "body_state": [],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": "Mom",
+      "met": null
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "rent",
+        "amount": 34250,
+        "category": "rent"
+      },
+      {
+        "item": "Bangalore maintenance quarterly ",
+        "amount": 7863.61,
+        "category": "maintenance"
+      },
+      {
+        "item": "Tomato and cheese",
+        "amount": 174,
+        "category": "groceries"
+      },
+      {
+        "item": "Andheri Electricity",
+        "amount": 3200,
+        "category": "utilities"
+      },
+      {
+        "item": "Bingo Chips, Pringle, ice cream, Onion and Potatoes",
+        "amount": 208,
+        "category": "swiggy/blinkit"
+      }
+    ],
+    "expenses_total": 45695.61,
+    "eod_note": "I am stressed wrt work. I am not happy with my performance. I am extremely pissed with the Shaadi process"
+  },
+  {
+    "date": "2026-07-02",
+    "mood": "😟 mildly sad",
+    "work": {
+      "done": "Morning was productive. Analysed CSUV2 logs for Readtimeout\nNight was productive catching up with Phani for recording mocks for perf testing.\nOffice was timepass. Need to sit far away from Nishu and Shubhavi.",
+      "carryover": null
+    },
+    "study": null,
+    "chores": {
+      "done": [
+        "Cleaned washroom"
+      ],
+      "missed": [
+        "Laundry",
+        "Made bed",
+        "Clothes in wardrobe",
+        "Cooked",
+        "Put utensils away",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Extra dusting",
+        "Cleaned mirrors",
+        "Cleaned washbasin",
+        "Filled water bottle"
+      ]
+    },
+    "food": {
+      "breakfast": "Black Coffee",
+      "lunch": "Cooked : Paneer Palak\nCanteen: 2 rotis",
+      "snack": "Cooked : Black boiled Chana, protein shake",
+      "dinner": "Pizza",
+      "hunger_prangs": null,
+      "supplements": "B12, Omega 3,Magnesium",
+      "water_litres": 2
+    },
+    "health": {
+      "sleep_hrs": 8,
+      "steps": 6712,
+      "weight_kg": 61.5,
+      "rings": {
+        "move_ring_closed": false,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": false,
+        "workout_done": false
+      },
+      "stretching": "none",
+      "body_state": [],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": "Mom",
+      "met": null
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "water",
+        "amount": 95,
+        "category": "groceries"
+      },
+      {
+        "item": "Dhaniya",
+        "amount": 10,
+        "category": "groceries"
+      },
+      {
+        "item": "canteen roti",
+        "amount": 28,
+        "category": "food"
+      },
+      {
+        "item": "plz",
+        "amount": 376,
+        "category": "food"
+      }
+    ],
+    "expenses_total": 509,
+    "eod_note": "I was anxious about work and not being on top of my game. Shubhavi spoke to me to much, told me her entire love story and college drama. By time it was evening I was feel sad and I ate pizza purely out of anger \nAlso I ended things with Aman."
+  },
+  {
+    "date": "2026-07-03",
+    "mood": "😊 happy",
+    "work": {
+      "done": "Not very productive day\nStruggling with configurations stuff for perf testing. Then IntelliJ stopped responding",
+      "carryover": null
+    },
+    "study": null,
+    "chores": {
+      "done": [
+        "Cleaned bathroom",
+        "Filled water bottle"
+      ],
+      "missed": [
+        "Laundry",
+        "Made bed",
+        "Clothes in wardrobe",
+        "Cooked",
+        "Put utensils away",
+        "Cleaned washroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Extra dusting",
+        "Cleaned mirrors",
+        "Cleaned washbasin"
+      ]
+    },
+    "food": {
+      "breakfast": "Black Coffee",
+      "lunch": "Paneer Steak, Grilled Veggies, Mashed Potatoes",
+      "snack": "Boiled Chana, Roasted potatoes, Makhana, Protein Shake",
+      "dinner": "Sugar Free Cake from Bunty Mahajan, Diet Coke",
+      "hunger_prangs": null,
+      "supplements": "B12,omega3,magnesium,whey",
+      "water_litres": 2
+    },
+    "health": {
+      "sleep_hrs": 8,
+      "steps": 6500,
+      "weight_kg": 62.1,
+      "rings": {
+        "move_ring_closed": true,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": true,
+        "workout_done": false
+      },
+      "stretching": "morning",
+      "body_state": [
+        "On periods"
+      ],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": "Mom, Urvi",
+      "met": null
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "Cake",
+        "amount": 508,
+        "category": "food"
+      },
+      {
+        "item": "Cake for Papa",
+        "amount": 389,
+        "category": "gift"
+      },
+      {
+        "item": "Canteen ",
+        "amount": 140,
+        "category": "food"
+      }
+    ],
+    "expenses_total": 1037,
+    "eod_note": "Day started with misery but it just got better. I gave a lift to Anusha's Husband to office, then SHubhavi se bahut baat huyi, ghar aake Urvi se phone pe 1+hour, Papa k liye cake cut kiya to celebrate his Investment business"
+  },
+  {
+    "date": "2026-07-04",
+    "mood": "⚡ productive",
+    "work": {
+      "done": "Holiday",
+      "carryover": null
+    },
+    "study": "Nothing",
+    "chores": {
+      "done": [
+        "Extra dusting"
+      ],
+      "missed": [
+        "Laundry",
+        "Made bed",
+        "Clothes in wardrobe",
+        "Cooked",
+        "Put utensils away",
+        "Cleaned washroom",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Cleaned mirrors",
+        "Cleaned washbasin",
+        "Filled water bottle"
+      ]
+    },
+    "food": {
+      "breakfast": "Black Coffee",
+      "lunch": "2 Cheese Sandwich",
+      "snack": "pop corn",
+      "dinner": "rice and paneer palak",
+      "hunger_prangs": "Pringle, Bingo chip, dark chocolate ice cream, Oreo",
+      "supplements": "Magnesium",
+      "water_litres": 1.5
+    },
+    "health": {
+      "sleep_hrs": 8,
+      "steps": 8700,
+      "weight_kg": 61.9,
+      "rings": {
+        "move_ring_closed": false,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": false,
+        "workout_done": true
+      },
+      "stretching": "none",
+      "body_state": [
+        "On periods"
+      ],
+      "workout_notes": "Badminton"
+    },
+    "social": {
+      "calls": "Mom",
+      "met": "Priyanka, Oshi, Sagar"
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "junk food",
+        "amount": 319,
+        "category": "swiggy/blinkit"
+      },
+      {
+        "item": "Printout and Stationery ",
+        "amount": 262,
+        "category": "other"
+      },
+      {
+        "item": "Printouts and groceries ",
+        "amount": 790,
+        "category": "swiggy/blinkit"
+      },
+      {
+        "item": "Printouts and groceries ",
+        "amount": 701,
+        "category": "swiggy/blinkit"
+      },
+      {
+        "item": "Flower Pot",
+        "amount": 70,
+        "category": "other"
+      },
+      {
+        "item": "Pineapple ",
+        "amount": 60,
+        "category": "food"
+      },
+      {
+        "item": "Parking ",
+        "amount": 20,
+        "category": "travel"
+      },
+      {
+        "item": "Photo Printouts ",
+        "amount": 500,
+        "category": "other"
+      },
+      {
+        "item": "Dmart",
+        "amount": 5030,
+        "category": "groceries"
+      }
+    ],
+    "expenses_total": 7752,
+    "eod_note": "The day was productive and clerical. I went to DMart, got printouts and passport size pics, when for Badminton coaching, tried reading"
+  },
+  {
+    "date": "2026-07-05",
+    "mood": "⚡ productive",
+    "work": {
+      "done": "Holiday",
+      "carryover": null
+    },
+    "study": null,
+    "chores": {
+      "done": [
+        "Laundry",
+        "Put utensils away",
+        "Cleaned washroom"
+      ],
+      "missed": [
+        "Made bed",
+        "Clothes in wardrobe",
+        "Cooked",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Extra dusting",
+        "Cleaned mirrors",
+        "Cleaned washbasin",
+        "Filled water bottle",
+        "DMart Grocery Haul",
+        "Iron Clothes",
+        "Mandir Cleaned",
+        "Washed Activa"
+      ]
+    },
+    "food": {
+      "breakfast": "Black coffee",
+      "lunch": "Falafel Wrap",
+      "snack": "Peri Peri Pop Corn",
+      "dinner": "Boiled Chana",
+      "hunger_prangs": null,
+      "supplements": "Magnesium",
+      "water_litres": 1
+    },
+    "health": {
+      "sleep_hrs": 8,
+      "steps": 4000,
+      "weight_kg": 62.5,
+      "rings": {
+        "move_ring_closed": false,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": false,
+        "workout_done": false
+      },
+      "stretching": "none",
+      "body_state": [
+        "On periods"
+      ],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": "Mom, Maasi, Shubhi, Tisya, PBT Online Book club with tomorrow and tomorrow and tomorrow",
+      "met": null
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [
+      {
+        "item": "Kalyan Maintenance ",
+        "amount": 4740,
+        "category": "maintenance"
+      },
+      {
+        "item": "Falafel Wrap",
+        "amount": 233,
+        "category": "swiggy/blinkit"
+      },
+      {
+        "item": "Rent",
+        "amount": 46731,
+        "category": "emi"
+      },
+      {
+        "item": "Netflix",
+        "amount": 499,
+        "category": "subscriptions"
+      },
+      {
+        "item": "Parlour - Face wax",
+        "amount": 918,
+        "category": "self-care/grooming"
+      },
+      {
+        "item": "Amazon - Sunscreen, Hair Mask, Adapter, racquet, Organiser ",
+        "amount": 7078,
+        "category": "shopping"
+      }
+    ],
+    "expenses_total": 60199,
+    "eod_note": "Got done with Grah Jyothi Scheme, read \"And then there were none\", urbanclap, attended PBT's online book club for tomorrow and tomorrow and tomorrow"
+  },
+  {
+    "date": "2026-07-10",
+    "mood": null,
+    "work": {
+      "done": null,
+      "carryover": null
+    },
+    "study": null,
+    "chores": {
+      "done": [
+        "Put utensils away"
+      ],
+      "missed": [
+        "Laundry",
+        "Made bed",
+        "Clothes in wardrobe",
+        "Cooked",
+        "Cleaned washroom",
+        "Cleaned bathroom",
+        "Changed sheets",
+        "Defrosted fridge",
+        "Cleaned windows",
+        "Extra dusting",
+        "Cleaned mirrors",
+        "Cleaned washbasin",
+        "Filled water bottle",
+        "DMart Grocery Haul",
+        "Iron Clothes",
+        "Mandir Cleaned",
+        "Washed Activa"
+      ]
+    },
+    "food": {
+      "breakfast": null,
+      "lunch": null,
+      "snack": null,
+      "dinner": null,
+      "hunger_prangs": null,
+      "supplements": null,
+      "water_litres": null
+    },
+    "health": {
+      "sleep_hrs": null,
+      "steps": null,
+      "weight_kg": null,
+      "rings": {
+        "move_ring_closed": false,
+        "exercise_ring_closed": false,
+        "stand_ring_closed": false,
+        "workout_done": false
+      },
+      "stretching": null,
+      "body_state": [],
+      "workout_notes": null
+    },
+    "social": {
+      "calls": null,
+      "met": null
+    },
+    "experience": {
+      "did_differently": null,
+      "remember": null
+    },
+    "expenses": [],
+    "expenses_total": 0,
+    "eod_note": null
+  }
+]; // full array of day objects, as-is from tracker_logs.json
+
+const PALETTE = ['#34d399','#60a5fa','#f87171','#fbbf24','#a78bfa','#f472b6','#4ade80','#38bdf8','#fb923c','#2dd4bf','#c084fc','#facc15','#94a3b8','#e879f9'];
+
+let daysData = [];           // raw day objects (source of truth for expenses/income/investments arrays)
+let manualIncome = [];       // local overlay: {id,label,amount,freq,date}
+let manualInvestments = [];  // local overlay: {id,label,amount,date}
+let colorMap = {};
+let selectedCats = new Set();
+let currentPeriod = 'monthly';
+let driveAccessToken = null;
+
+function fmtINR(n){ return '₹' + Number(n||0).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+
+/* ---------------- persistent storage ---------------- */
+async function loadPersisted(){
+  setSaveState('busy','loading saved data…');
+  try{ const r = await window.storage.get('manual-income').catch(()=>null); if(r&&r.value) manualIncome = JSON.parse(r.value); }catch(e){}
+  try{ const r = await window.storage.get('manual-investments').catch(()=>null); if(r&&r.value) manualInvestments = JSON.parse(r.value); }catch(e){}
+  try{ const r = await window.storage.get('gdrive-client-id').catch(()=>null); if(r&&r.value) document.getElementById('clientIdInput').value = r.value; }catch(e){}
+  setSaveState('ok','synced');
+}
+async function persist(key, val){
+  setSaveState('busy','saving…');
+  try{ await window.storage.set(key, typeof val==='string'?val:JSON.stringify(val)); setSaveState('ok','saved'); }
+  catch(e){ setSaveState('err','save failed'); }
+}
+function setSaveState(kind,text){
+  document.getElementById('saveDot').className = 'save-dot ' + (kind==='ok'?'ok':kind==='busy'?'busy':'');
+  document.getElementById('saveText').textContent = text;
+}
+
+/* ---------------- derive flat lists from daysData + overlays ---------------- */
+function allExpenses(){
+  const out = [];
+  daysData.forEach(d=>{ (d.expenses||[]).forEach(e=> out.push({date:d.date, item:e.item, amount:Number(e.amount)||0, category:(e.category||'other').trim()})); });
+  return out;
+}
+function allIncome(){
+  const out = [];
+  daysData.forEach(d=>{ (d.income||[]).forEach(e=> out.push({date:d.date, label:e.item, amount:Number(e.amount)||0, category:(e.category||'other').trim(), source:'file'})); });
+  manualIncome.forEach(e=> out.push({...e, source:'manual'}));
+  return out;
+}
+function allInvestments(){
+  const out = [];
+  daysData.forEach(d=>{ (d.investments||[]).forEach(e=> out.push({date:d.date, label:e.item, amount:Number(e.amount)||0, category:(e.category||'other').trim(), source:'file'})); });
+  manualInvestments.forEach(e=> out.push({...e, source:'manual'}));
+  return out;
+}
+
+/* ---------------- period filtering ---------------- */
+function periodBounds(period){
+  const ref = new Date(); // anchor to real "today"
+  let start, end;
+  if(period==='monthly'){
+    start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+    end = new Date(ref.getFullYear(), ref.getMonth()+1, 1);
+  }else if(period==='quarterly'){
+    const q = Math.floor(ref.getMonth()/3);
+    start = new Date(ref.getFullYear(), q*3, 1);
+    end = new Date(ref.getFullYear(), q*3+3, 1);
+  }else{
+    start = new Date(ref.getFullYear(), 0, 1);
+    end = new Date(ref.getFullYear()+1, 0, 1);
+  }
+  return {start, end};
+}
+function filterDaysByPeriod(){
+  const bounds = periodBounds(currentPeriod);
+  return daysData.filter(d=> d && d.date && inPeriod(d.date, bounds));
+}
+function sumDayTotal(days, totalField, arrField){
+  return days.reduce((s,d)=>{
+    if(typeof d[totalField] === 'number') return s + d[totalField];
+    return s + (d[arrField]||[]).reduce((a,e)=>a+(Number(e.amount)||0),0);
+  }, 0);
+}
+function inPeriod(dateStr, bounds){
+  const d = new Date(dateStr+'T00:00:00');
+  return d >= bounds.start && d < bounds.end;
+}
+function filterByPeriod(list){
+  const bounds = periodBounds(currentPeriod);
+  return list.filter(x=> inPeriod(x.date, bounds));
+}
+
+/* ---------------- colors ---------------- */
+function assignColors(cats){
+  colorMap = {};
+  cats.forEach((c,i)=>{ colorMap[c] = PALETTE[i % PALETTE.length]; });
+}
+
+/* ---------------- render: stats ---------------- */
+function renderStats(){
+  const exp = filterByPeriod(allExpenses());
+  const inc = filterByPeriod(allIncome());
+  const inv = filterByPeriod(allInvestments());
+  const days = filterDaysByPeriod();
+  // prefer the tracker's own authoritative totals per day; add manual overlay entries (not yet in the file) on top
+  const manualIncSum = filterByPeriod(manualIncome).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const manualInvSum = filterByPeriod(manualInvestments).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  const totalExp = sumDayTotal(days, 'expenses_total', 'expenses');
+  const totalInc = sumDayTotal(days, 'income_total', 'income') + manualIncSum;
+  const totalInv = sumDayTotal(days, 'investments_total', 'investments') + manualInvSum;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat emerald">
+      <button class="addbtn" id="toggleIncomeAdd">+ add</button>
+      <div class="label">Total income</div>
+      <div class="value">${fmtINR(totalInc)}</div>
+      <div class="quick-add" id="incomeQuickAdd">
+        <div class="row">
+          <input id="incLabel" type="text" placeholder="item, e.g. Salary">
+          <input id="incAmount" type="number" placeholder="₹">
+          <input id="incCategory" type="text" placeholder="category, e.g. salary">
+          <button class="btn primary icon" id="addIncomeBtn">✓</button>
+        </div>
+      </div>
+    </div>
+    <div class="stat coral">
+      <div class="label">Total expenses</div>
+      <div class="value">${fmtINR(totalExp)}</div>
+    </div>
+    <div class="stat violet">
+      <button class="addbtn" id="toggleInvAdd">+ add</button>
+      <div class="label">Investment</div>
+      <div class="value">${fmtINR(totalInv)}</div>
+      <div class="quick-add" id="invQuickAdd">
+        <div class="row">
+          <input id="invLabel" type="text" placeholder="item, e.g. Nifty50 Index Fund">
+          <input id="invAmount" type="number" placeholder="₹">
+          <input id="invCategory" type="text" placeholder="category, e.g. SIP">
+          <button class="btn primary icon" id="addInvBtn">✓</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('toggleIncomeAdd').onclick = ()=> document.getElementById('incomeQuickAdd').classList.toggle('open');
+  document.getElementById('toggleInvAdd').onclick = ()=> document.getElementById('invQuickAdd').classList.toggle('open');
+  document.getElementById('addIncomeBtn').onclick = ()=>{
+    const label = document.getElementById('incLabel').value.trim();
+    const amount = Number(document.getElementById('incAmount').value);
+    const category = document.getElementById('incCategory').value.trim() || 'other';
+    if(!label || !amount) return;
+    const today = new Date().toISOString().slice(0,10);
+    manualIncome.push({id:'mi'+Date.now(), label, amount, category, date:today});
+    persist('manual-income', manualIncome);
+    renderAll();
+  };
+  document.getElementById('addInvBtn').onclick = ()=>{
+    const label = document.getElementById('invLabel').value.trim();
+    const amount = Number(document.getElementById('invAmount').value);
+    const category = document.getElementById('invCategory').value.trim() || 'other';
+    if(!label || !amount) return;
+    const today = new Date().toISOString().slice(0,10);
+    manualInvestments.push({id:'mv'+Date.now(), label, amount, category, date:today});
+    persist('manual-investments', manualInvestments);
+    renderAll();
+  };
+}
+
+/* ---------------- render: donut + slice-and-dice ---------------- */
+let donutInstance = null;
+function renderDonut(){
+  const exp = filterByPeriod(allExpenses());
+  const totals = {};
+  exp.forEach(e=>{ totals[e.category] = (totals[e.category]||0) + e.amount; });
+  const cats = Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
+  assignColors(cats);
+  const grandTotal = cats.reduce((s,c)=>s+totals[c],0);
+  document.getElementById('donutTotal').textContent = fmtINR(grandTotal) + ' total';
+
+  // prune selections that no longer exist in this period's categories
+  selectedCats.forEach(c=>{ if(!cats.includes(c)) selectedCats.delete(c); });
+
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  if(donutInstance) donutInstance.destroy();
+  donutInstance = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels: cats, datasets:[{
+      data: cats.map(c=>totals[c]),
+      backgroundColor: cats.map(c=> selectedCats.size===0 || selectedCats.has(c) ? colorMap[c] : colorMap[c]+'33'),
+      borderColor:'#11151d', borderWidth:2, hoverOffset:6,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#161c26', borderColor:'#232b38', borderWidth:1,
+          titleColor:'#98a2b3', bodyColor:'#eef1f6', titleFont:{family:'Inter', size:10}, bodyFont:{family:'JetBrains Mono', size:11},
+          callbacks:{ label: c => ' ' + c.label + ': ' + fmtINR(c.parsed) + ' (' + Math.round(c.parsed/grandTotal*100) + '%)' }
+        }
+      },
+      onClick:(evt, elements)=>{
+        if(!elements.length) return;
+        const cat = cats[elements[0].index];
+        toggleCat(cat);
+      }
+    }
+  });
+
+  renderChipLegend(cats, totals, grandTotal);
+  renderSelectionBar(totals, grandTotal);
+}
+
+function toggleCat(cat){
+  if(selectedCats.has(cat)) selectedCats.delete(cat); else selectedCats.add(cat);
+  renderDonut();
+}
+
+function renderChipLegend(cats, totals, grandTotal){
+  document.getElementById('chipLegend').innerHTML = cats.map(c=>`
+    <div class="chip ${selectedCats.has(c)?'selected':''}" data-cat="${c}">
+      <span class="swatch" style="background:${colorMap[c]}"></span>
+      ${c} <span class="amt">${fmtINR(totals[c])}</span>
+    </div>
+  `).join('');
+  document.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> toggleCat(chip.dataset.cat));
+  });
+}
+
+function renderSelectionBar(totals, grandTotal){
+  const bar = document.getElementById('selectionBar');
+  if(selectedCats.size === 0){
+    bar.innerHTML = '<span>Click a slice or chip to select categories — totals &amp; % show here.</span>';
+    return;
+  }
+  const sum = [...selectedCats].reduce((s,c)=> s + (totals[c]||0), 0);
+  const pct = grandTotal ? Math.round((sum/grandTotal)*100) : 0;
+  bar.innerHTML = `
+    <span>${selectedCats.size} categor${selectedCats.size>1?'ies':'y'} selected: <b>${[...selectedCats].join(', ')}</b></span>
+    <span><b>${fmtINR(sum)}</b> · <b>${pct}%</b> of period spend &nbsp; <button class="clear-sel" id="clearSelBtn">clear</button></span>
+  `;
+  document.getElementById('clearSelBtn').onclick = ()=>{ selectedCats.clear(); renderDonut(); };
+}
+
+/* ---------------- render: trend ---------------- */
+let trendInstance = null;
+function renderTrend(){
+  const exp = filterByPeriod(allExpenses());
+  const filtered = selectedCats.size ? exp.filter(e=>selectedCats.has(e.category)) : exp;
+  const byDate = {};
+  filtered.forEach(e=>{ byDate[e.date] = (byDate[e.date]||0) + e.amount; });
+  const dates = Object.keys(byDate).sort();
+  const values = dates.map(d=>byDate[d]);
+  document.getElementById('trendHint').textContent = dates.length ? `${dates[0]} → ${dates[dates.length-1]}${selectedCats.size?' · filtered':''}` : 'no data this period';
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if(trendInstance) trendInstance.destroy();
+  trendInstance = new Chart(ctx, {
+    type:'line',
+    data:{ labels: dates, datasets:[{
+      label:'Spend', data: values,
+      borderColor:'#34d399', backgroundColor:'rgba(52,211,153,0.12)',
+      pointBackgroundColor:'#11151d', pointBorderColor:'#34d399',
+      pointRadius:4, pointHoverRadius:6, borderWidth:2, tension:0.25, fill:true,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#161c26', borderColor:'#232b38', borderWidth:1,
+          titleColor:'#98a2b3', bodyColor:'#eef1f6', titleFont:{family:'Inter', size:10}, bodyFont:{family:'JetBrains Mono', size:11},
+          callbacks:{ label: ctx => ' ' + fmtINR(ctx.parsed.y) }
+        }
+      },
+      scales:{
+        x:{ ticks:{ color:'#5b6472', font:{family:'JetBrains Mono', size:9.5} }, grid:{ color:'#232b38' } },
+        y:{ ticks:{ color:'#5b6472', font:{family:'JetBrains Mono', size:9.5}, callback:v=>'₹'+v }, grid:{ color:'#232b38' } }
+      }
+    }
+  });
+}
+
+/* ---------------- render: ledger ---------------- */
+function renderLedger(){
+  let exp = filterByPeriod(allExpenses());
+  if(selectedCats.size) exp = exp.filter(e=>selectedCats.has(e.category));
+  const sorted = [...exp].sort((a,b)=> a.date < b.date ? 1 : -1);
+  document.getElementById('ledgerCount').textContent = `${sorted.length} entries`;
+  document.getElementById('ledgerBody').innerHTML = sorted.map((e,i)=>`
+    <tr>
+      <td class="date">${e.date}</td>
+      <td>${e.item || '—'}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:5px;"><span class="swatch" style="width:7px;height:7px;border-radius:2px;background:${colorMap[e.category]||'#555'};display:inline-block;"></span>${e.category}</span></td>
+      <td class="amt">${fmtINR(e.amount)}</td>
+      <td></td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-2);padding:20px;">No entries in this period.</td></tr>';
+}
+
+/* ---------------- period toggle ---------------- */
+document.getElementById('periodToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#periodToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPeriod = btn.dataset.period;
+  selectedCats.clear();
+  renderAll();
+});
+
+function updatePeriodHint(){
+  const b = periodBounds(currentPeriod);
+  const fmt = d => d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('periodHint').textContent = `${fmt(b.start)} – ${fmt(new Date(b.end-1))}`;
+}
+
+/* ---------------- master render ---------------- */
+function renderAll(){
+  renderStats();
+  renderDonut();
+  renderTrend();
+  renderLedger();
+  updatePeriodHint();
+}
+
+/* ---------------- data loading: file upload ---------------- */
+document.getElementById('fileInput').addEventListener('change', (ev)=>{
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      daysData = Array.isArray(data) ? data : (data.days || []);
+      showStatus('ok', `Loaded ${daysData.length} day entries from ${file.name}.`);
+      renderAll();
+    }catch(err){ showStatus('err', 'Could not parse that file — expecting the tracker_logs.json shape.'); }
+  };
+  reader.readAsText(file);
+});
+
+/* ---------------- data loading: Google Drive OAuth ---------------- */
+let gisLoaded = false;
+function loadGisScript(){
+  return new Promise((resolve, reject)=>{
+    if(gisLoaded) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = ()=>{ gisLoaded = true; resolve(); };
+    s.onerror = ()=> reject(new Error('Could not load Google Identity script'));
+    document.head.appendChild(s);
+  });
+}
+
+document.getElementById('connectDriveBtn').addEventListener('click', async ()=>{
+  const clientId = document.getElementById('clientIdInput').value.trim();
+  if(!clientId){ showStatus('err', 'Paste your Google OAuth Client ID first.'); return; }
+  persist('gdrive-client-id', clientId);
+  showStatus('info', 'Loading Google sign-in…');
+  try{
+    await loadGisScript();
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: (resp)=>{
+        if(resp.error){ showStatus('err', 'Sign-in failed: ' + resp.error); return; }
+        driveAccessToken = resp.access_token;
+        document.getElementById('fetchDriveBtn').disabled = false;
+        showStatus('ok', 'Connected to Google Drive. Click Fetch to pull your file.');
+      }
+    });
+    tokenClient.requestAccessToken();
+  }catch(err){
+    showStatus('err', 'Could not initiate Google sign-in (' + err.message + '). This can happen in the sandboxed preview — try hosting the file at a fixed URL instead.');
+  }
+});
+
+document.getElementById('fetchDriveBtn').addEventListener('click', async ()=>{
+  if(!driveAccessToken){ showStatus('err', 'Connect to Google Drive first.'); return; }
+  const fileName = document.getElementById('fileNameInput').value.trim() || 'tracker_logs.json';
+  showStatus('info', 'Searching Drive for ' + fileName + '…');
+  try{
+    const q = encodeURIComponent(`name='${fileName}' and trashed=false`);
+    const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)`, {
+      headers:{ Authorization: 'Bearer ' + driveAccessToken }
+    });
+    if(!listRes.ok) throw new Error('Drive search failed: ' + listRes.status);
+    const listData = await listRes.json();
+    if(!listData.files || !listData.files.length) throw new Error(`No file named "${fileName}" found in your Drive.`);
+    const fileId = listData.files[0].id;
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers:{ Authorization: 'Bearer ' + driveAccessToken }
+    });
+    if(!fileRes.ok) throw new Error('File download failed: ' + fileRes.status);
+    const data = await fileRes.json();
+    daysData = Array.isArray(data) ? data : (data.days || []);
+    showStatus('ok', `Fetched ${daysData.length} day entries from Google Drive.`);
+    renderAll();
+  }catch(err){
+    showStatus('err', err.message);
+  }
+});
+
+function showStatus(kind, msg){
+  const el = document.getElementById('syncStatus');
+  el.className = 'status-msg ' + kind;
+  el.textContent = msg;
+}
+
+/* ---------------- boot ---------------- */
+(async function boot(){
+  daysData = RAW_DAYS;
+  renderAll(); // render immediately with embedded snapshot
+  await loadPersisted();
+  renderAll();
+})();
+</script>
+</body>
+</html>
